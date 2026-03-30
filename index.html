@@ -657,10 +657,20 @@ function renderRestOverlay(){
 var timerSecs=0,timerRunning=false,timerInterval=null;
 function fmtTime(s){return('0'+Math.floor(s/60)).slice(-2)+':'+('0'+(s%60)).slice(-2);}
 function tickTimer(){timerSecs++;var el=document.getElementById('tdisplay');if(el)el.textContent=fmtTime(timerSecs);}
-function startTimer(){if(!timerRunning){timerRunning=true;timerInterval=setInterval(tickTimer,1000);renderTimerBtns();}}
-function pauseTimer(){timerRunning=false;clearInterval(timerInterval);renderTimerBtns();}
-function resetTimer(){timerRunning=false;clearInterval(timerInterval);timerSecs=0;renderTimerBtns();}
-function renderTimerBtns(){var el=document.getElementById('tdisplay');if(el)el.textContent=fmtTime(timerSecs);}
+function startTimer(){if(!timerRunning){timerRunning=true;timerInterval=setInterval(tickTimer,1000);updateTimerUI();}}
+function pauseTimer(){timerRunning=false;clearInterval(timerInterval);updateTimerUI();}
+function resetTimer(){timerRunning=false;clearInterval(timerInterval);timerSecs=0;updateTimerUI();}
+function updateTimerUI(){
+  var disp=document.getElementById('tdisplay');
+  if(disp)disp.textContent=fmtTime(timerSecs);
+  var startBtn=document.getElementById('timer-start-btn');
+  if(startBtn){
+    startBtn.textContent=timerRunning?'⏸ Pause':'▶ Start';
+    startBtn.className='btn pr sm';
+    startBtn.onclick=timerRunning?pauseTimer:startTimer;
+  }
+}
+function renderTimerBtns(){updateTimerUI();}
 
 // ── VIEW STATE ────────────────────────────────────────────────────────────────
 var view='list';
@@ -712,6 +722,14 @@ function render(){
 
 function renderTabBar(){
   var tb=document.getElementById('tab-bar');tb.innerHTML='';
+  // Hide tab bar when inside a session — use the back button to navigate
+  if(view==='session'){
+    tb.style.display='none';
+    document.getElementById('main').style.paddingBottom='env(safe-area-inset-bottom,0px)';
+    return;
+  }
+  tb.style.display='flex';
+  document.getElementById('main').style.paddingBottom='calc(64px + env(safe-area-inset-bottom,0px))';
   var tabs=[
     {id:'list',icon:'🏋️',lbl:'Workouts'},
     {id:'progress',icon:'📈',lbl:'Progress'},
@@ -725,7 +743,7 @@ function renderTabBar(){
       el('div',{cls:'tab-icon',txt:t.icon}),
       el('div',{cls:'tab-label',txt:t.lbl}),
     ]);
-    item.onclick=function(){view=t.id;if(t.id==='list'&&view==='session'){}render();};
+    item.onclick=function(){view=t.id;render();};
     tb.appendChild(item);
   });
 }
@@ -801,10 +819,10 @@ function renderSession(){
   // timer bar
   var tbar=div('tbar',[]);
   tbar.appendChild(div('',[mk('tlabel','SESSION TIME'),el('div',{id:'tdisplay',cls:'tdisplay',txt:fmtTime(timerSecs)})]));
-  var btnGrp=div('tbar-btns',[
-    btn('pr sm',timerRunning?'⏸ Running':'▶ Start',timerRunning?pauseTimer:startTimer),
-    btn('sm','↺',resetTimer),
-  ]);
+  var startPauseBtn=btn('pr sm',timerRunning?'⏸ Pause':'▶ Start',timerRunning?pauseTimer:startTimer);
+  startPauseBtn.id='timer-start-btn';
+  var resetBtn=btn('sm','↺',resetTimer);
+  var btnGrp=div('tbar-btns',[startPauseBtn,resetBtn]);
   tbar.appendChild(btnGrp);
   var rightGrp=div('tbar-right',[]);
   rightGrp.appendChild(el('span',{cls:'sets-count',txt:doneCount+'/'+totalCount+' sets'}));
