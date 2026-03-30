@@ -932,7 +932,15 @@ function renderExBlock(ex,log,isDeload){
   if(hasSub&&showSubs){var sb2=btn('sm '+(subOpen?'bl':''),subOpen?'HIDE':'ALT',function(e){e.stopPropagation();subExId=subOpen?null:ex.id+log.logIndex;render();});right.appendChild(sb2);}
   right.appendChild(el('span',{style:'font-size:10px;color:var(--t3)',txt:isOpen?'▲':'▼'}));
   var head=div('ex-head',[info,right]);
-  head.onclick=function(){openEx[ex.id+log.logIndex]=!isOpen;render();};
+  head.onclick=function(){
+    openEx[ex.id+log.logIndex]=!isOpen;
+    // Lightweight re-render: just rebuild this exercise block in place
+    var parent=block.parentNode;
+    if(parent){
+      var newBlock=renderExBlock(ex,log,isDeload);
+      parent.replaceChild(newBlock,block);
+    }
+  };
   block.appendChild(head);
 
   if(subOpen&&hasSub){
@@ -992,11 +1000,28 @@ function renderExBlock(ex,log,isDeload){
       ck.onclick=function(){
         sets[i].done=!set.done;saveState();
         if(sets[i].done&&ex.rest&&!ex.cardio)startRestTimer(ex.rest,ex.n);
-        render();
+        // Update just the checkmark and badge without full render
+        ck.className='ck'+(sets[i].done?' done':'');
+        ck.textContent=sets[i].done?'✓':'';
+        var doneNow=sets.filter(function(s){return s.done;}).length;
+        var badge=right.querySelector('.sl-badge');
+        if(doneNow>0){
+          if(!badge){badge=document.createElement('span');badge.className='sl-badge b-gold';right.insertBefore(badge,right.firstChild);}
+          badge.className='sl-badge '+(doneNow>=sets.length?'b-green':'b-gold');
+          badge.textContent=doneNow>=sets.length?'DONE':doneNow+'/'+sets.length;
+        }
+        // Update sets count in tbar
+        var sc=document.querySelector('.sets-count');
+        if(sc){
+          var allExs=getSessionForIndex(activeLogIndex).blocks.reduce(function(a,b){return a.concat(b.exs);},[]);
+          var log2=getOrCreateLog(activeLogIndex);
+          var done2=allExs.reduce(function(a,ex2){return a+(getExData(log2,ex2.id).sets||[]).filter(function(s){return s.done;}).length;},0);
+          var total2=allExs.reduce(function(a,ex2){return a+ex2.ds;},0);
+          sc.textContent=done2+'/'+total2+' sets';
+        }
       };
       row.appendChild(ck);body.appendChild(row);
     });
-    body.appendChild(setScroll);
     var addBtn=el('button',{cls:'add-set',txt:'+ ADD SET'});
     addBtn.onclick=function(){exData.sets.push({weight:'',reps:'',rpe:'',notes:'',done:false});saveState();render();};
     body.appendChild(addBtn);
