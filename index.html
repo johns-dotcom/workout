@@ -826,7 +826,23 @@ function renderSession(){
   tbar.appendChild(btnGrp);
   var rightGrp=div('tbar-right',[]);
   rightGrp.appendChild(el('span',{cls:'sets-count',txt:doneCount+'/'+totalCount+' sets'}));
-  rightGrp.appendChild(btn(showSubs?'bl sm':'sm',showSubs?'Hide Subs':'Subs',function(){showSubs=!showSubs;subExId=null;render();}));
+  rightGrp.appendChild(btn(showSubs?'bl sm':'sm',showSubs?'Hide Subs':'Subs',function(){
+  showSubs=!showSubs;subExId=null;
+  // rebuild just the blocks section, not the whole panel
+  var ct=document.querySelector('#panel-session .ct');
+  if(ct){
+    var log2=getOrCreateLog(activeLogIndex);
+    var sess2=getSessionForIndex(activeLogIndex);
+    var isDeload2=isDeloadWeek()||log2.isDeload;
+    // re-render each ex block in place
+    ct.querySelectorAll('.ex').forEach(function(exEl){
+      var exId=exEl.getAttribute('data-exid');
+      if(!exId)return;
+      var ex2=sess2.blocks.reduce(function(a,b){return a.concat(b.exs);},[]).find(function(e){return e.id===exId;});
+      if(ex2){exEl.parentNode.replaceChild(renderExBlock(ex2,log2,isDeload2),exEl);}
+    });
+  }
+}));
   rightGrp.appendChild(log.completed?el('span',{cls:'sl-badge b-green',txt:'✓ Done '+log.date}):btn('gn sm','✓ Done',function(){log.completed=true;log.duration=timerSecs;log.date=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});pauseTimer();saveState();render();}));
   tbar.appendChild(rightGrp);
   panel.appendChild(tbar);
@@ -862,7 +878,11 @@ function renderSession(){
   var priRows=sess.pri.map(function(item,i){
     var k='log'+activeLogIndex+'_'+i;var checked=STATE.priChecked[k];
     var ck=el('button',{cls:'pri-ck'+(checked?' done':''),txt:checked?'✓':''});
-    ck.onclick=function(){STATE.priChecked[k]=!checked;saveState();render();};
+    ck.onclick=function(){
+      STATE.priChecked[k]=!checked;saveState();
+      ck.className='pri-ck'+(STATE.priChecked[k]?' done':'');
+      ck.textContent=STATE.priChecked[k]?'✓':'';
+    };
     return div('pri-row',[ck,div('',[el('div',{cls:'pri-txt',html:'<strong>'+item.t+'</strong>'}),mk('pri-sets',item.s)])]);
   });
   ct.appendChild(div('card',[div('card-hd',[mk('card-ht','PRI HOME WORK — TONIGHT'),mk('card-hs','10-15 min before bed')]),div('card-bd',priRows)]));
@@ -872,7 +892,7 @@ function renderSession(){
   panel.appendChild(ct);
 }
 
-function renderReadinessCheck(panel,log){
+function buildReadinessWrap(log){
   var r=log.readiness||{};
   var wrap=div('readiness-wrap',[mk('readiness-title','PRE-SESSION CHECK-IN')]);
   var grid=div('readiness-grid',[]);
@@ -887,7 +907,17 @@ function renderReadinessCheck(panel,log){
     var opts=div('rq-options',[]);
     q.opts.forEach(function(opt){
       var o=el('button',{cls:'rq-opt'+(r[q.id]===opt.v?' '+opt.cls:''),txt:opt.l});
-      o.onclick=function(){if(!log.readiness)log.readiness={};log.readiness[q.id]=opt.v;saveState();render();};
+      o.onclick=function(){
+        if(!log.readiness)log.readiness={};
+        log.readiness[q.id]=opt.v;
+        saveState();
+        // Update readiness UI in place - don't wipe the whole panel
+        var wrap=document.querySelector('.readiness-wrap');
+        if(wrap){
+          var newWrap=buildReadinessWrap(log);
+          wrap.parentNode.replaceChild(newWrap,wrap);
+        }
+      };
       opts.appendChild(o);
     });
     card.appendChild(opts);grid.appendChild(card);
@@ -899,7 +929,11 @@ function renderReadinessCheck(panel,log){
     resEl.className='readiness-result rr-'+res.level;
     wrap.appendChild(resEl);
   }
-  panel.appendChild(wrap);
+  return wrap;
+}
+
+function renderReadinessCheck(panel,log){
+  panel.appendChild(buildReadinessWrap(log));
 }
 
 function getReadinessResult(r){
@@ -923,13 +957,19 @@ function renderExBlock(ex,log,isDeload){
   var hasRamp=ex.ramp;
 
   var block=div('ex',[]);
+  block.setAttribute('data-exid',ex.id);
   var info=div('',[
     div('',[el('span',{cls:'ex-n',txt:ex.n}),(isDeload&&!ex.cardio?el('span',{cls:'ex-deload',txt:' DELOAD'}):null)].filter(Boolean)),
     mk('ex-m',ex.p+' — '+ex.c.slice(0,60)+(ex.c.length>60?'...':'')),
   ]);
   var right=el('div',{cls:'ex-right'},[]);
   if(doneC>0)right.appendChild(el('span',{cls:'sl-badge '+(doneC>=sets.length?'b-green':'b-gold'),txt:doneC>=sets.length?'DONE':doneC+'/'+sets.length}));
-  if(hasSub&&showSubs){var sb2=btn('sm '+(subOpen?'bl':''),subOpen?'HIDE':'ALT',function(e){e.stopPropagation();subExId=subOpen?null:ex.id+log.logIndex;render();});right.appendChild(sb2);}
+  if(hasSub&&showSubs){var sb2=btn('sm '+(subOpen?'bl':''),subOpen?'HIDE':'ALT',function(e){
+  e.stopPropagation();
+  subExId=subOpen?null:ex.id+log.logIndex;
+  var parent=block.parentNode;
+  if(parent){parent.replaceChild(renderExBlock(ex,log,isDeload),block);}
+});right.appendChild(sb2);}
   right.appendChild(el('span',{style:'font-size:10px;color:var(--t3)',txt:isOpen?'▲':'▼'}));
   var head=div('ex-head',[info,right]);
   head.onclick=function(){
@@ -949,7 +989,11 @@ function renderExBlock(ex,log,isDeload){
     var stabs=div('sub-tabs',[]);
     ['home','taken','outdoor'].forEach(function(s2){
       var t=el('button',{cls:'sub-tab'+(sc===s2?' on':''),txt:s2==='home'?'At Home':s2==='taken'?'Machine Taken':'Outdoor'});
-      t.onclick=function(){subScenario[ex.id]=s2;render();};stabs.appendChild(t);
+      t.onclick=function(){
+        subScenario[ex.id]=s2;
+        var parent=block.parentNode;
+        if(parent){parent.replaceChild(renderExBlock(ex,log,isDeload),block);}
+      };stabs.appendChild(t);
     });
     sp.appendChild(stabs);
     (SUBS[ex.id][sc]||[]).forEach(function(sub){sp.appendChild(div('sub-c',[mk('sub-name','→ '+sub.n),mk('sub-note',sub.note)]));});
@@ -1023,7 +1067,11 @@ function renderExBlock(ex,log,isDeload){
       row.appendChild(ck);body.appendChild(row);
     });
     var addBtn=el('button',{cls:'add-set',txt:'+ ADD SET'});
-    addBtn.onclick=function(){exData.sets.push({weight:'',reps:'',rpe:'',notes:'',done:false});saveState();render();};
+    addBtn.onclick=function(){
+      exData.sets.push({weight:'',reps:'',rpe:'',notes:'',done:false});saveState();
+      var parent=block.parentNode;
+      if(parent){parent.replaceChild(renderExBlock(ex,log,isDeload),block);}
+    };
     body.appendChild(addBtn);
     var nta=el('textarea',{cls:'snotes',placeholder:'Form notes...'});
     nta.value=exData.notes||'';nta.oninput=function(){exData.notes=nta.value;saveState();};
