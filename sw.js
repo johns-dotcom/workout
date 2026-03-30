@@ -1,4 +1,4 @@
-const CACHE = 'phase1-v4';
+const CACHE = 'phase1-v5';
 const ASSETS = [
   './index.html',
   './manifest.json',

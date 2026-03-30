@@ -306,6 +306,21 @@ hr{border:none;border-top:1px solid var(--b);margin:16px 0;}
 .export-btn{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--bg3);border:1px solid var(--b2);border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent;font-size:13px;font-weight:600;color:var(--t2);min-height:52px;}
 .export-btn:active{opacity:.7;}
 
+/* ── WEIGHT RECOMMENDATION ── */
+.rec-wrap{background:var(--bg3);border:1px solid var(--b2);border-radius:10px;padding:12px 14px;margin:12px 0 4px;display:flex;align-items:flex-start;gap:10px;}
+.rec-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.rec-body{flex:1;min-width:0;}
+.rec-label{font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--t3);margin-bottom:3px;}
+.rec-weight{font-family:var(--syne);font-size:22px;font-weight:700;color:var(--gold);}
+.rec-unit{font-size:12px;color:var(--t3);margin-left:2px;}
+.rec-note{font-family:var(--mono);font-size:10px;color:var(--t2);margin-top:4px;line-height:1.5;}
+.rec-conf{font-family:var(--mono);font-size:8px;padding:2px 7px;border-radius:3px;margin-top:5px;display:inline-block;}
+.rec-conf.high{background:var(--grd);color:var(--green);}
+.rec-conf.medium{background:var(--gd);color:var(--gold);}
+.rec-conf.low{background:var(--bd);color:var(--blue);}
+.rec-use-btn{font-family:var(--mono);font-size:10px;padding:6px 12px;border-radius:6px;border:1px solid var(--b2);background:transparent;color:var(--t2);cursor:pointer;margin-top:6px;-webkit-tap-highlight-color:transparent;min-height:36px;}
+.rec-use-btn:active{background:var(--gd);border-color:var(--gold);color:var(--gold);}
+
 /* ── SCROLLBAR (desktop only) ── */
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -622,6 +637,80 @@ function calcRamp(workingWeight,isDeload){
   while(cur+20<w){cur+=20;sets.push(cur);}
   sets.push(w);
   return sets;
+}
+
+
+// ── WEIGHT RECOMMENDATION ENGINE ──────────────────────────────────────────────
+var STARTING_WEIGHTS={
+  rdl:95,sl_rdl:20,goblet:25,goblet_t:25,
+  trap_ramp:135,trap_work:135,trap_ramp_h:135,trap_ls:135,
+  db_bench:30,db_bench_f:35,
+  hip_thrust:45,sl_thrust:0,
+  ham_curl:40,cable_row:50,cable_row_f:60,
+  lat_pull:50,pullup:0,ring_row:0,
+  abduction:0,cope_plank:0,
+};
+var MAX_JUMP={
+  trap_work:10,trap_ramp_h:10,trap_ls:10,trap_ramp:10,
+  rdl:10,sl_rdl:5,goblet:5,goblet_t:5,
+  hip_thrust:10,db_bench:5,db_bench_f:5,
+  ham_curl:5,cable_row:5,cable_row_f:5,lat_pull:5,
+};
+function getWeightRecommendation(exId,isDeload){
+  if(!(exId in STARTING_WEIGHTS))return null;
+  var history=[];
+  STATE.logs
+    .filter(function(l){return l.completed&&l.exercises&&l.exercises[exId];})
+    .sort(function(a,b){return b.logIndex-a.logIndex;})
+    .forEach(function(l){
+      var sets=(l.exercises[exId].sets||[]).filter(function(s){return s.done&&s.weight&&parseFloat(s.weight)>0;});
+      if(sets.length>0){
+        var maxW=Math.max.apply(null,sets.map(function(s){return parseFloat(s.weight)||0;}));
+        var rpeArr=sets.filter(function(s){return s.rpe;});
+        var avgRpe=rpeArr.length?rpeArr.reduce(function(a,s){return a+parseFloat(s.rpe)/rpeArr.length;},0):null;
+        history.push({logIndex:l.logIndex,weight:maxW,rpe:avgRpe,deload:l.isDeload});
+      }
+    });
+  if(history.length===0){
+    var start=STARTING_WEIGHTS[exId];
+    if(!start&&start!==0)return null;
+    if(start===0)return null;
+    var w=isDeload?Math.round(start*0.55/5)*5:start;
+    return{weight:w,basis:'start',confidence:'low',note:isDeload?'Starting weight at deload (55%)':'Phase 1 starting weight — adjust if needed'};
+  }
+  var lastReal=history.filter(function(h){return !h.deload;})[0]||history[0];
+  var base=lastReal.weight;
+  var lastRpe=lastReal.rpe;
+  var jump=MAX_JUMP[exId]||5;
+  var suggested=base,note='',basis='last session';
+  if(lastRpe){
+    if(lastRpe<=6){
+      suggested=base+jump;note='Last RPE '+lastRpe.toFixed(1)+' — too easy, go heavier';basis='RPE low';
+    } else if(lastRpe<=7.5){
+      var sameCount=history.filter(function(h){return !h.deload&&Math.abs(h.weight-base)<2.5;}).length;
+      if(sameCount>=2){suggested=base+jump;note='Held '+base+'lbs for '+sameCount+' sessions at good RPE — ready to progress';basis='plateau';}
+      else{suggested=base;note='Last RPE '+lastRpe.toFixed(1)+' — on target, hold weight';basis='on target';}
+    } else if(lastRpe<=8.5){
+      suggested=base;note='Last RPE '+lastRpe.toFixed(1)+' — solid, hold';basis='working weight';
+    } else {
+      suggested=Math.round(base*0.9/5)*5;note='Last RPE '+lastRpe.toFixed(1)+' — too heavy, reduce';basis='RPE high';
+    }
+  } else {
+    var cnt=history.filter(function(h){return !h.deload;}).length;
+    if(cnt>=2&&history[1]&&Math.abs(history[1].weight-base)<2.5){
+      suggested=base+jump;note='Same weight 2 sessions in a row, no RPE — try adding '+jump+'lbs';basis='progression';
+    } else {
+      suggested=base;note='Based on last session — log RPE for smarter suggestions';basis:'no RPE';
+    }
+  }
+  if(isDeload){
+    var pre=suggested;
+    suggested=Math.round(suggested*0.55/5)*5;
+    note='Deload: '+pre+'lbs reduced to '+suggested+'lbs (55%)';basis='deload';
+  }
+  suggested=Math.round(suggested/2.5)*2.5;
+  var conf=history.length>=3?'high':history.length===2?'medium':'low';
+  return{weight:suggested,basis:basis,confidence:conf,note:note,sessions:history.length};
 }
 
 // ── REST TIMER ────────────────────────────────────────────────────────────────
@@ -1018,6 +1107,28 @@ function renderExBlock(ex,log,isDeload){
       body.appendChild(rampWrap);
     }
 
+    // Weight recommendation
+    if(!ex.cardio){
+      var rec=getWeightRecommendation(ex.id,isDeload);
+      if(rec){
+        var rw=div('rec-wrap',[]);
+        rw.appendChild(mk('rec-icon',rec.confidence==='high'?'🎯':rec.confidence==='medium'?'📊':'💡'));
+        var rb=div('rec-body',[]);
+        rb.appendChild(mk('rec-label','SUGGESTED WEIGHT'));
+        var rwt=document.createElement('div');
+        rwt.innerHTML='<span class="rec-weight">'+rec.weight+'</span><span class="rec-unit"> lbs</span>';
+        rb.appendChild(rwt);
+        rb.appendChild(mk('rec-note',rec.note));
+        rb.appendChild(mk('rec-conf '+rec.confidence,rec.confidence.toUpperCase()+' CONFIDENCE'+(rec.sessions?' · '+rec.sessions+' sessions':'')));
+        var useBtn=el('button',{cls:'rec-use-btn',txt:'↓ Fill sets with '+rec.weight+'lbs'});
+        useBtn.onclick=function(){
+          body.querySelectorAll('.si').forEach(function(inp){
+            if(inp.placeholder==='lbs'&&!inp.value){inp.value=rec.weight;inp.dispatchEvent(new Event('input'));}
+          });
+        };
+        rb.appendChild(useBtn);rw.appendChild(rb);body.appendChild(rw);
+      }
+    }
     var hdr=div('set-hd',[]);
     ['SET',ex.cardio?'DUR':'WEIGHT','REPS',ex.cardio?'':'RPE','NOTES','✓'].forEach(function(l){hdr.appendChild(el('div',{txt:l}));});
     body.appendChild(hdr);
