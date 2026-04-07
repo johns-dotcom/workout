@@ -1,0 +1,7 @@
+{
+  "name": "phase1-tracker",
+  "private": true,
+  "scripts": {
+    "start": "npx serve -l tcp://0.0.0.0:${PORT:-3000} --single"
+  }
+}
