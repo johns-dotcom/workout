@@ -971,32 +971,45 @@ function renderMuscleSVG(mData,size,view){
 var IMG_BASE='https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
 var EX_IMAGES={
   // Lower hinge
-  rdl:'Romanian_Deadlift',sl_rdl:'Single-Leg_Deadlift',
+  rdl:'Romanian_Deadlift',sl_rdl:'Kettlebell_One-Legged_Deadlift',sl_rdl_t:'Kettlebell_One-Legged_Deadlift',
   goblet:'Goblet_Squat',goblet_t:'Goblet_Squat',
   trap_work:'Barbell_Deadlift',trap_ramp:'Barbell_Deadlift',trap_ramp_h:'Barbell_Deadlift',trap_ls:'Barbell_Deadlift',
   // Core
-  hollow:'Flat_Bench_Lying_Leg_Raise',nordic:'Lying_Leg_Curls',
+  hollow:'Flat_Bench_Lying_Leg_Raise',nordic:'Natural_Glute_Ham_Raise',
   pallof:'Pallof_Press',dead_bug:'Dead_Bug',
+  hol_arch:'Hyperextensions_With_No_Hyperextension_Bench',
+  cope_plank:'Plank',
   // Upper push
   db_bench:'Dumbbell_Bench_Press',db_bench_f:'Dumbbell_Bench_Press',
   pushup:'Pushups',cable_fly:'Butterfly',
   // Upper pull
   cable_row:'Seated_Cable_Rows',cable_row_f:'Seated_Cable_Rows',
   db_row:'One-Arm_Dumbbell_Row',dead_hang:'Scapular_Pull-Up',
-  face_pull:'Face_Pull',pull_apart:'Back_Flyes_-_With_Bands',
-  face_f:'Face_Pull',
+  face_pull:'Face_Pull',pull_apart:'Band_Pull_Apart',
+  face_f:'Face_Pull',pa_f:'Band_Pull_Apart',
   // Vertical pull
   scap_pull:'Scapular_Pull-Up',pullup:'Pullups',
   lat_pull:'Close-Grip_Front_Lat_Pulldown',ring_row:'Inverted_Row',
+  scap_tue:'Scapular_Pull-Up',scap_f:'Scapular_Pull-Up',
   // Lower posterior
   hip_thrust:'Barbell_Hip_Thrust',sl_thrust:'Barbell_Hip_Thrust',sl_thr_ls:'Barbell_Hip_Thrust',
   ham_curl:'Lying_Leg_Curls',abduction:'Thigh_Abductor',
   // Gymnastics
   lsit_ls:'Flat_Bench_Lying_Leg_Raise',lsit_ar:'Flat_Bench_Lying_Leg_Raise',
-  hol_arch:'Superman',wall_pike:'Pushups',
-  cope_plank:'Plank',
+  wall_pike:'Pushups',
+  hs_ls:'Handstand_Push-Ups',hang_ls:'Scapular_Pull-Up',
+  wrist_p:'Kneeling_Forearm_Stretch',
+  // PRI / glute activation
+  e5:'Butt_Lift_Bridge',f5:'Butt_Lift_Bridge',g4:'Butt_Lift_Bridge',rgm_thu:'Butt_Lift_Bridge',
+  e9:'Butt_Lift_Bridge',f9:'Butt_Lift_Bridge',rgm_4:'Butt_Lift_Bridge',
+  glute_med:'Lying_Glute',e6:'Lying_Glute',f6:'Lying_Glute',
+  hip_flow:'90_90_Hamstring',flow_thu:'90_90_Hamstring',
+  e14:'Scapular_Pull-Up',f14:'Scapular_Pull-Up',g8:'Scapular_Pull-Up',
+  pec_str:'Chest_And_Front_Of_Shoulder_Stretch',e4:'Chest_And_Front_Of_Shoulder_Stretch',f4:'Chest_And_Front_Of_Shoulder_Stretch',g3:'Chest_And_Front_Of_Shoulder_Stretch',
+  doorway:'Chest_And_Front_Of_Shoulder_Stretch',
+  sleeper:'Shoulder_Stretch',
   // Mobility / stretching
-  hip90:'IT_Band_and_Glute_Stretch',pigeon:'IT_Band_and_Glute_Stretch',
+  hip90:'90_90_Hamstring',pigeon:'IT_Band_and_Glute_Stretch',
   couch:'Kneeling_Hip_Flexor',open_book:'Lying_Crossover',
   pancake:'Seated_Hamstring',
   // Cardio
@@ -1013,12 +1026,14 @@ function getExImages(ex){
     if(n.indexOf('deadlift')>=0||n.indexOf('rdl')>=0)slug='Romanian_Deadlift';
     else if(n.indexOf('squat')>=0)slug='Goblet_Squat';
     else if(n.indexOf('bench')>=0)slug='Dumbbell_Bench_Press';
+    else if(n.indexOf('scapular pull')>=0)slug='Scapular_Pull-Up';
     else if(n.indexOf('row')>=0)slug='Seated_Cable_Rows';
     else if(n.indexOf('pull-up')>=0||n.indexOf('pullup')>=0||n.indexOf('pull up')>=0)slug='Pullups';
+    else if(n.indexOf('pull-apart')>=0||n.indexOf('pull apart')>=0)slug='Band_Pull_Apart';
     else if(n.indexOf('hang')>=0)slug='Scapular_Pull-Up';
     else if(n.indexOf('thrust')>=0)slug='Barbell_Hip_Thrust';
     else if(n.indexOf('curl')>=0)slug='Lying_Leg_Curls';
-    else if(n.indexOf('plank')>=0)slug='Plank';
+    else if(n.indexOf('plank')>=0||n.indexOf('copenhagen')>=0)slug='Plank';
     else if(n.indexOf('push-up')>=0||n.indexOf('pushup')>=0)slug='Pushups';
     else if(n.indexOf('fly')>=0)slug='Butterfly';
     else if(n.indexOf('walk')>=0||n.indexOf('treadmill')>=0)slug='Jogging-Treadmill';
@@ -1026,6 +1041,14 @@ function getExImages(ex){
     else if(n.indexOf('face pull')>=0)slug='Face_Pull';
     else if(n.indexOf('lat pull')>=0)slug='Close-Grip_Front_Lat_Pulldown';
     else if(n.indexOf('pallof')>=0)slug='Pallof_Press';
+    else if(n.indexOf('glute max')>=0||n.indexOf('glute med')>=0)slug='Butt_Lift_Bridge';
+    else if(n.indexOf('90/90')>=0||n.indexOf('90-90')>=0||n.indexOf('hip 90')>=0)slug='90_90_Hamstring';
+    else if(n.indexOf('pec stretch')>=0||n.indexOf('doorway')>=0)slug='Chest_And_Front_Of_Shoulder_Stretch';
+    else if(n.indexOf('sleeper')>=0||n.indexOf('shoulder stretch')>=0)slug='Shoulder_Stretch';
+    else if(n.indexOf('handstand')>=0)slug='Handstand_Push-Ups';
+    else if(n.indexOf('dead bug')>=0)slug='Dead_Bug';
+    else if(n.indexOf('abduction')>=0)slug='Thigh_Abductor';
+    else if(n.indexOf('wrist')>=0)slug='Kneeling_Forearm_Stretch';
   }
   if(!slug)return null;
   return{img0:IMG_BASE+slug+'/0.jpg',img1:IMG_BASE+slug+'/1.jpg'};
