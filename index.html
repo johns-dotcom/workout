@@ -821,10 +821,19 @@ var SMB={trapezius:'trapezius',rear_delts:'rear_delts',lats:'lats',mid_back:'mid
 function buildMuscleSVG(pri,sec,view,size){
   var isFront=(view||'front')==='front';
   var lg=size>60;
-  var bg=lg?'rgba(106,154,247,.04)':'rgba(90,120,180,.08)';
-  var st=lg?'rgba(106,154,247,.15)':'var(--t3)';
-  var pF=lg?'rgba(106,154,247,.85)':'rgba(106,154,247,.7)';
-  var sF=lg?'rgba(106,154,247,.28)':'rgba(106,154,247,.22)';
+  var light=document.documentElement.getAttribute('data-theme')==='light';
+  var bg,st,pF,sF;
+  if(light){
+    bg=lg?'rgba(61,109,217,.05)':'rgba(61,109,217,.08)';
+    st=lg?'rgba(10,10,15,.25)':'rgba(10,10,15,.35)';
+    pF=lg?'rgba(61,109,217,.90)':'rgba(61,109,217,.80)';
+    sF=lg?'rgba(61,109,217,.30)':'rgba(61,109,217,.28)';
+  }else{
+    bg=lg?'rgba(106,154,247,.04)':'rgba(90,120,180,.08)';
+    st=lg?'rgba(106,154,247,.15)':'var(--t3)';
+    pF=lg?'rgba(106,154,247,.85)':'rgba(106,154,247,.7)';
+    sF=lg?'rgba(106,154,247,.28)':'rgba(106,154,247,.22)';
+  }
   var vb=isFront?'0 0 724 1448':'724 0 724 1448';
   var muscles=isFront?MF:MB;
   var sm=isFront?SMF:SMB;
