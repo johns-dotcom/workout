@@ -8,14 +8,16 @@ Phase 1 Training Tracker — a single-file PWA for tracking a structured 4-week 
 
 ## Repository Structure
 
-The repo contains **6 parallel versions** of the same app in separate directories, each an iteration on UI/theme:
+The repo contains **6 parallel versions** of the same app in separate directories plus a **root-level copy** used for deployment:
 
+- **`/` (root)** — deployed copy. `index.html`, `sw.js`, `manifest.json`, icons are byte-identical mirrors of `files 6/`. Served by Railway via `npm start` (`package.json` runs `npx serve`).
 - **files/** — v1, dark theme (#0d1117), desktop sidebar layout, service worker `phase1-v1`
 - **files 2/** — v2, light theme (#f5f0e8), mobile bottom-tab layout, no service worker
 - **files 3/** — v2, light theme, adds service worker `phase1-v2`
-- **files 4/** through **files 6/** — incremental iterations (v3–v5 service workers), light theme, mobile layout
+- **files 4/**, **files 5/** — iterations with service workers `phase1-v3`, `phase1-v4`
+- **files 6/** — current version, service worker `phase1-v12` (latest as of 2026-04)
 
-All versions share the same JS logic and data model. **The latest/most complete version is `files 6/`** — default to editing this version unless told otherwise.
+All versions share the same JS logic and data model. **Default to editing `files 6/` and mirror the change to the root copy** (`index.html` and `sw.js`) in the same commit — recent commit history shows both are always touched together. Don't edit earlier `files N/` directories unless explicitly asked.
 
 ## Architecture
 
@@ -52,7 +54,7 @@ DOM elements are built with helper functions: `el()`, `div()`, `span()`, `btn()`
 
 ### Service Worker Strategy
 
-Cache-first with network fallback (`sw.js`). Cache name in v6: `phase1-v8`. Pre-caches `index.html`, `manifest.json`, and Google Fonts. Old caches are cleaned on activate. Falls back to cached `index.html` when offline.
+Cache-first with network fallback (`sw.js`). Pre-caches `index.html`, `manifest.json`, and Google Fonts. Old caches are cleaned on activate. Falls back to cached `index.html` when offline. Current cache name is `phase1-v12` (in both `files 6/sw.js` and root `sw.js`) — bump this on every user-visible change or clients won't pick it up.
 
 ### CSS Conventions
 
@@ -60,14 +62,19 @@ Abbreviated class names: `.sb` (sidebar), `.wl` (week list), `.sl` (session list
 
 ## Development
 
-No build step. Open any version's `index.html` in a browser. For service worker testing, serve over HTTPS or localhost:
+No build step. Open any version's `index.html` in a browser. For service worker testing, serve over HTTPS or localhost.
 
+Local dev (either works):
 ```bash
 cd "files 6" && python3 -m http.server 8000
+# or, from the repo root (matches Railway):
+npm start   # runs: npx serve -l tcp://0.0.0.0:${PORT:-3000} --single
 ```
 
-**When modifying, bump two version strings to force cache refresh:**
-1. The `CACHE` constant in `sw.js` (e.g., `phase1-v8` → `phase1-v9`)
-2. The localStorage key `SK` in `index.html` if the STATE shape changes (to avoid deserializing incompatible data)
+Railway deploys the **repo root**, not `files 6/`. The root `index.html`/`sw.js`/`manifest.json` must stay in sync with `files 6/` — treat them as a single edit.
 
-**Caution:** Changing the `SK` localStorage key will reset all user data. Only bump it when the STATE schema is incompatible with the previous version.
+**When modifying, bump version strings to force cache refresh:**
+1. The `CACHE` constant in **both** `files 6/sw.js` and root `sw.js` (e.g., `phase1-v12` → `phase1-v13`). Without this, users keep the old cached `index.html`.
+2. The localStorage key `SK` in `index.html` (currently `boom_p1_v5`) **only** if the STATE shape changes incompatibly.
+
+**Caution:** Changing `SK` wipes all user data — logs, milestones, PRI checkmarks, PT notes. Only bump for schema-incompatible changes, and prefer a migration path when feasible.
