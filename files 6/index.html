@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TRAINER">
 <meta name="theme-color" content="#08080f">
+<script>(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.setAttribute('data-theme','light');var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content','#fafaf7');}}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.png">
 <title>TRAINER</title>
@@ -53,6 +54,30 @@
   --tab-h:66px;
   --safe-bottom:env(safe-area-inset-bottom,0px);
   --safe-top:env(safe-area-inset-top,0px);
+}
+[data-theme="light"]{
+  --bg:#fafaf7;
+  --bg2:#f3f3ee;
+  --bg3:#ebebe5;
+  --bg4:#e0e0da;
+  --bg5:#d2d2cb;
+  --b:rgba(0,0,0,0.08);
+  --b2:rgba(0,0,0,0.14);
+  --b3:rgba(0,0,0,0.22);
+  --t:#0a0a0f;
+  --t2:#555560;
+  --t3:#8a8a94;
+  --t4:#b0b0b8;
+  --ac:#3d6dd9;
+  --ac2:#2f5cc8;
+  --acd:rgba(61,109,217,0.10);
+  --acdx:rgba(61,109,217,0.04);
+  --acg:rgba(61,109,217,0.22);
+  --gd:rgba(201,148,58,0.14);
+  --rd:rgba(224,90,74,0.12);
+  --grd:rgba(64,200,112,0.14);
+  --pd:rgba(154,124,223,0.14);
+  --cd:rgba(75,197,217,0.14);
 }
 html{height:100%;overflow:hidden;}
 body{
@@ -817,6 +842,14 @@ function inp(cls,ph,val){var i=document.createElement('input');i.className=cls;i
 function ta(cls,ph,val){var t=document.createElement('textarea');t.className=cls;t.placeholder=ph||'';if(val)t.value=val;return t;}
 
 // ─── STORAGE: window.storage persistent layer ─────────────────────────────────
+function getTheme(){try{return localStorage.getItem('theme')||'dark';}catch(e){return'dark';}}
+function setTheme(t){
+  try{localStorage.setItem('theme',t);}catch(e){}
+  if(t==='light')document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  var m=document.querySelector('meta[name="theme-color"]');
+  if(m)m.setAttribute('content',t==='light'?'#fafaf7':'#08080f');
+}
 var DB = { sessions:[], blocklist:[], totalXP:0, weekNum:1 };
 var DB_KEY = 'trainer_db_v3';
 var SETTINGS_KEY = 'trainer_settings_v3';
@@ -3296,6 +3329,19 @@ function renderSettings(){
   var t=el('div','pg-title','');t.textContent='Settings';hdr.appendChild(t);
   p.appendChild(hdr);
   var ct=div('ct');
+
+  // Appearance
+  ct.appendChild(el('div','sec-hdr','◆ Appearance'));
+  var themeRow=div('');themeRow.style.cssText='display:flex;gap:6px;margin-bottom:14px;';
+  var curTheme=getTheme();
+  ['dark','light'].forEach(function(tName){
+    var b=el('button','btn sm'+(curTheme===tName?' pr':''));
+    b.textContent=tName==='dark'?'Dark':'Light';
+    b.style.flex='1';
+    b.onclick=function(){setTheme(tName);renderSettings();};
+    themeRow.appendChild(b);
+  });
+  ct.appendChild(themeRow);
 
   // Blocklist
   ct.appendChild(el('div','sec-hdr','◆ Exercise blocklist'));
