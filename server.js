@@ -69,7 +69,7 @@ function serveStatic(req, res, pathname) {
 
 const server = http.createServer((req, res) => {
   const { pathname } = url.parse(req.url);
-  if (req.method === 'POST' && (pathname === '/api/generate' || pathname === '/api/swap')) {
+  if (req.method === 'POST' && (pathname === '/api/generate' || pathname === '/api/swap' || pathname === '/api/pri')) {
     return proxyAnthropic(req, res);
   }
   if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(req, res, pathname);

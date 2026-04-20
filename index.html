@@ -642,6 +642,7 @@ input,select,textarea{-webkit-appearance:none;border-radius:0;font-family:var(--
   <main class="main" id="main">
     <div class="panel active" id="p-home"></div>
     <div class="panel" id="p-session"></div>
+    <div class="panel" id="p-pri"></div>
     <div class="panel" id="p-overview"></div>
     <div class="panel" id="p-skills"></div>
     <div class="panel" id="p-history"></div>
@@ -710,11 +711,29 @@ FREE TIME: Short, anywhere workout snacks. No equipment assumed — bodyweight o
 TWO-A-DAY: AM = low-CNS (mobility/skill/accessory). PM = high intensity.
 
 RESPOND ONLY WITH JSON, zero markdown:
-{"session_title":"str","session_focus":"one sentence","mode":"bodybuilding|calisthenics|athlete|recovery|resistance|freetime","time_of_day":"AM|PM|single","estimated_duration_min":60,"session_xp":400,"blocks":[{"tag":"BLOCK A","name":"str","duration_min":15,"exercises":[{"id":"snake_id","name":"Exercise Name","prescription":"3×10 @ 3-1-1-0","cues":"2-3 PT cues","sets":3,"reps_target":"10","rest_sec":90,"is_cardio":false,"muscles_primary":["muscle"],"muscles_secondary":["muscle"],"body_view":"front|back"}]}],"pri_homework":[{"name":"exercise","prescription":"3×10"}],"completion_message":"Coach reward max 12 words"}
+{"session_title":"str","session_focus":"one sentence","mode":"bodybuilding|calisthenics|athlete|recovery|resistance|freetime","time_of_day":"AM|PM|single","estimated_duration_min":60,"session_xp":400,"blocks":[{"tag":"BLOCK A","name":"str","duration_min":15,"exercises":[{"id":"snake_id","name":"Exercise Name","prescription":"3×10 @ 3-1-1-0","cues":"2-3 PT cues","sets":3,"reps_target":"10","rest_sec":90,"is_cardio":false,"muscles_primary":["muscle"],"muscles_secondary":["muscle"],"body_view":"front|back"}]}],"completion_message":"Coach reward max 12 words"}
 Muscle names: chest front_delts biceps triceps forearms abs obliques quads hip_flexors adductors calves trapezius rear_delts lats mid_back lower_back glutes hamstrings`;
 
 var SWAP_SYS = `Personal trainer. Athlete needs exercise swap. Respect all PRI constraints: no conventional deadlift, no barbell squat, no overhead press. Hit same muscle group. If swapping a warm-up/PRI drill, prefer a named PRI protocol drill (90-90 Hip Lift, Wall Squat + Respiratory Trunk Rotation, Resisted Right Glute Max variants, Apical Expansion + Left Adductor, Scapular Pull Backs). Return ONLY JSON:
 {"alternatives":[{"name":"str","prescription":"3×12","cues":"one cue","why":"one sentence","muscles_primary":["m"],"muscles_secondary":["m"],"body_view":"front|back"}]}`;
+
+var PRI_SYS = `You are a PRI physical therapist. Generate a DAILY 10–15 minute PRI routine for an athlete with Left AIC / Right BC pattern. Rotate focus across the week so the athlete hits all four axes: hip centering, thoracic/rib cage, scapular, mediastinum/adductor. Use 4–6 drills. Keep cues terse, diagnostic, pattern-specific (e.g. "Right BC correction. Down and back — not up.", "Right hip centering. Log socket pinch.", "Left side priority. Eyes follow arm.").
+
+VOCABULARY (draw from these named drills, you may extend slightly):
+- 90-90 Hip Lift (± Balloon)
+- Supine Hooklying Resisted Right Glute Max
+- All Four Resisted Right Glute Max
+- Modified Supine Pec Stretch (left arm, knees right)
+- All Four Left Post. Mediastinum Expansion
+- Right Sidelying Apical Expansion + Left Adductor
+- PRI Wall Squat + Respiratory Trunk Rotation
+- Standing Wall Left Knee Flexion + Resisted Right Glute Max
+- Seated Right Scapular Pull Backs
+- Hip 90/90 (floor sit or active)
+- Open Book Stretch (sidelying)
+
+RESPOND ONLY WITH JSON, zero markdown:
+{"focus":"short phrase e.g. Hip centering + thoracic","duration_min":12,"items":[{"name":"str","prescription":"3×5 breaths","cues":"one line","priority":"high|medium|low"}],"note":"one sentence on why this focus today"}`;
 
 function buildSystemPrompt(blocklist, db) {
   // Static block — cached on Anthropic side (ephemeral, 5-min TTL) so repeat
@@ -1249,21 +1268,19 @@ var CHALLENGE_POOL = [
     }
   },
   {
-    id:'pri_complete', title:'Finish PRI homework', desc:'Complete all PRI homework items in a session', xp:70,
+    id:'pri_complete', title:'Finish daily PRI', desc:'Check off every item on today\'s PRI routine', xp:70,
     check: function(db, todayTs) {
-      var found = false;
-      (db.sessions||[]).forEach(function(s){
-        if(!s.completed || (s.timestamp||0) < todayTs) return;
-        if(!s._full || !s._full.data || !s._full.data.pri_homework) return;
-        var total = s._full.data.pri_homework.length;
-        if(!total) return;
+      try {
+        var s = JSON.parse(localStorage.getItem('pri_today')||'null');
+        if (!s) return {done:false, progress:0, target:1};
+        var today = new Date().toISOString().slice(0,10);
+        if (s.date !== today) return {done:false, progress:0, target:1};
+        var total = (s.data && s.data.items) ? s.data.items.length : 0;
+        if (!total) return {done:false, progress:0, target:1};
         var checked = 0;
-        for(var i=0;i<total;i++){
-          if(s._full.priChecked && s._full.priChecked[i]) checked++;
-        }
-        if(checked>=total) found = true;
-      });
-      return {done: found, progress: found?1:0, target: 1};
+        for (var i=0;i<total;i++) { if(s.checked && s.checked[i]) checked++; }
+        return {done: checked>=total, progress: checked>=total?1:0, target:1};
+      } catch(e) { return {done:false, progress:0, target:1}; }
     }
   },
   {
@@ -1786,6 +1803,23 @@ async function genSession(mode,timeOfDay){
   return JSON.parse(txt);
 }
 
+async function requestPRI(){
+  var today=new Date().toISOString().slice(0,10);
+  var dow=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+  var r=await fetch('/api/pri',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,
+      system:[{type:'text',text:PRI_SYS,cache_control:{type:'ephemeral'}}],
+      messages:[{role:'user',content:'Generate today\'s PRI routine. Date: '+today+' ('+dow+').'}]})});
+  if(!r.ok)throw new Error('PRI API '+r.status);
+  var d=await r.json();
+  var txt=(d.content||[]).map(function(b){return b.type==='text'?b.text:'';}).join('');
+  txt=txt.replace(/```json|```/g,'').trim();
+  var fb=txt.indexOf('{');if(fb>0)txt=txt.slice(fb);
+  var data=JSON.parse(txt);
+  localStorage.setItem('pri_today',JSON.stringify({date:today,data:data,checked:{}}));
+  return data;
+}
+
 async function getSwaps(ex,reason){
   var r=await fetch('/api/swap',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,system:SWAP_SYS,
@@ -1914,6 +1948,7 @@ function render(){
   var p=document.getElementById('p-'+VIEW);if(p)p.classList.add('active');
   if(VIEW==='home')renderHome();
   else if(VIEW==='session')renderSession();
+  else if(VIEW==='pri')renderPRI();
   else if(VIEW==='overview')renderOverview();
   else if(VIEW==='skills')renderSkills();
   else if(VIEW==='history')renderHistory();
@@ -1933,12 +1968,13 @@ function renderTabs(){
   document.getElementById('main').style.paddingBottom='calc(var(--tab-h) + var(--safe-bottom))';
   var icons = {
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>',
+    pri: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18"/><path d="M8 8c-3 0-5 2-5 5v3a5 5 0 005 5"/><path d="M16 8c3 0 5 2 5 5v3a5 5 0 01-5 5"/></svg>',
     overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L4 14h7l-2 8 9-12h-7l2-8z"/></svg>',
     skills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2.4 7.4h7.6l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg>',
     history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg>',
     settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24"/></svg>'
   };
-  [{id:'home',lb:'Home'},{id:'overview',lb:'Forge'},{id:'skills',lb:'Skills'},{id:'history',lb:'Log'},{id:'settings',lb:'Config'}].forEach(function(t){
+  [{id:'home',lb:'Home'},{id:'pri',lb:'PRI'},{id:'overview',lb:'Forge'},{id:'skills',lb:'Skills'},{id:'history',lb:'Log'},{id:'settings',lb:'Config'}].forEach(function(t){
     var tab=div('tab'+(VIEW===t.id?' on':''));
     var ic = div('tab-ic');ic.innerHTML=icons[t.id];ic.querySelector('svg').style.width='20px';ic.querySelector('svg').style.height='20px';
     tab.appendChild(ic);
@@ -2421,24 +2457,6 @@ function renderSession(){
   var nb=div('card-bd');
   var nta=ta('ex-notes','How did it feel? Energy? Form notes?',sess.note||'');nta.rows=3;
   nta.oninput=function(){sess.note=nta.value;};nb.appendChild(nta);nc.appendChild(nb);ct.appendChild(nc);
-
-  // PRI homework
-  if(data.pri_homework&&data.pri_homework.length>0){
-    var pc=div('card');
-    var ph=div('card-hd');ph.appendChild(el('div','card-ht','PRI tonight'));ph.appendChild(el('div','card-hs','10-15 min'));pc.appendChild(ph);
-    var pb=div('card-bd');
-    data.pri_homework.forEach(function(item,i){
-      var row=div('pri-row');
-      var checked=sess.priChecked&&sess.priChecked[i];
-      var ck=el('button','pri-ck'+(checked?' on':''),checked?'✓':'');
-      ck.onclick=function(){if(!sess.priChecked)sess.priChecked={};sess.priChecked[i]=!sess.priChecked[i];ck.className='pri-ck'+(sess.priChecked[i]?' on':'');ck.textContent=sess.priChecked[i]?'✓':'';};
-      row.appendChild(ck);
-      var ri=div('');ri.appendChild(el('div','',item.name)).style.cssText='font-family:var(--sans);font-size:12px;font-weight:600;';
-      ri.appendChild(el('div','',item.prescription)).style.cssText='font-family:var(--mono);font-size:8px;color:var(--t3);margin-top:1px;';
-      row.appendChild(ri);pb.appendChild(row);
-    });
-    pc.appendChild(pb);ct.appendChild(pc);
-  }
 
   var expBtn = el('button','btn sm','↓ Export session CSV');
   expBtn.style.cssText+=';width:100%;margin-top:14px;';
@@ -3329,6 +3347,88 @@ function renderSessDetail(){
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────────────────────
+function renderPRI(){
+  var p=document.getElementById('p-pri');p.innerHTML='';
+  var today=new Date().toISOString().slice(0,10);
+  var stored=null;try{stored=JSON.parse(localStorage.getItem('pri_today')||'null');}catch(e){}
+  var fresh=stored&&stored.date===today;
+  var data=fresh?stored.data:null;
+  var checked=fresh?(stored.checked||{}):{};
+
+  var strip=div('app-strip');
+  strip.appendChild(el('div','app-strip-txt','DAILY · PRI ROUTINE'));
+  p.appendChild(strip);
+
+  var hdr=div('pg-hdr');
+  hdr.appendChild(el('div','pg-eye',today));
+  var t=el('div','pg-title','');t.textContent=data&&data.focus?data.focus:'PRI Tonight';
+  hdr.appendChild(t);
+  p.appendChild(hdr);
+
+  var ct=div('ct');
+
+  if(!data){
+    ct.appendChild(el('div','co','No routine for today yet. Generate one — it\'ll cache locally and only regenerate when the date rolls over or you tap Regenerate.'));
+    var gen=el('button','btn pr','Generate today\'s PRI');
+    gen.style.cssText='width:100%;';
+    gen.onclick=async function(){
+      gen.disabled=true;gen.textContent='Generating…';
+      try{await requestPRI();renderPRI();}
+      catch(e){alert('Failed: '+(e&&e.message||e));gen.disabled=false;gen.textContent='Generate today\'s PRI';}
+    };
+    ct.appendChild(gen);
+  }else{
+    if(data.note){
+      ct.appendChild(el('div','co',data.note));
+    }
+    var card=div('card');
+    var ph=div('card-hd');
+    ph.appendChild(el('div','card-ht','Today'));
+    ph.appendChild(el('div','card-hs',(data.duration_min||12)+' MIN'));
+    card.appendChild(ph);
+    var pb=div('card-bd');
+    (data.items||[]).forEach(function(item,i){
+      var row=div('pri-row');
+      var ck=el('button','pri-ck'+(checked[i]?' on':''),checked[i]?'✓':'');
+      ck.onclick=function(){
+        checked[i]=!checked[i];
+        var s={};try{s=JSON.parse(localStorage.getItem('pri_today')||'{}');}catch(e){}
+        s.checked=checked;
+        try{localStorage.setItem('pri_today',JSON.stringify(s));}catch(e){}
+        ck.className='pri-ck'+(checked[i]?' on':'');
+        ck.textContent=checked[i]?'✓':'';
+      };
+      row.appendChild(ck);
+      var ri=div('');
+      var nm=el('div','',item.name);nm.style.cssText='font-family:var(--sans);font-size:13px;font-weight:600;';
+      ri.appendChild(nm);
+      if(item.prescription){
+        var pr=el('div','',item.prescription);pr.style.cssText='font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px;letter-spacing:.05em;';
+        ri.appendChild(pr);
+      }
+      if(item.cues){
+        var cu=el('div','',item.cues);cu.style.cssText='font-size:11px;color:var(--t2);margin-top:4px;line-height:1.45;';
+        ri.appendChild(cu);
+      }
+      row.appendChild(ri);
+      pb.appendChild(row);
+    });
+    card.appendChild(pb);
+    ct.appendChild(card);
+
+    var regen=el('button','btn sm','↻ Regenerate today\'s routine');
+    regen.style.cssText='width:100%;margin-top:14px;';
+    regen.onclick=async function(){
+      regen.disabled=true;regen.textContent='Regenerating…';
+      try{await requestPRI();renderPRI();}
+      catch(e){alert('Failed: '+(e&&e.message||e));regen.disabled=false;regen.textContent='↻ Regenerate today\'s routine';}
+    };
+    ct.appendChild(regen);
+  }
+
+  p.appendChild(ct);
+}
+
 function renderSettings(){
   var p=document.getElementById('p-settings');p.innerHTML='';
   var strip = div('app-strip');
