@@ -1,4 +1,4 @@
-const CACHE = 'phase1-v13';
+const CACHE = 'phase1-v14';
 const ASSETS = [
   './index.html',
   './manifest.json',
@@ -22,6 +22,8 @@ self.addEventListener('activate', function(e){
 });
 
 self.addEventListener('fetch', function(e){
+  var u = new URL(e.request.url);
+  if (u.pathname.indexOf('/api/') === 0) return; // never intercept API calls
   e.respondWith(
     caches.match(e.request).then(function(cached){
       return cached || fetch(e.request).then(function(res){
@@ -31,7 +33,8 @@ self.addEventListener('fetch', function(e){
         return res;
       });
     }).catch(function(){
-      return caches.match('./index.html');
+      if (e.request.mode === 'navigate') return caches.match('./index.html');
+      return Response.error();
     })
   );
 });

@@ -1732,8 +1732,8 @@ async function genSession(mode,timeOfDay){
       msg += '\nBuild the session around these. Priority targets (medial delts, tricep long head, forearms, obliques) still get their normal emphasis if in this list. Do not significantly train muscles NOT in this list — accessory/stabilizer work is fine, but main volume should be on selected body parts.';
     }
   }
-  var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:sys,messages:[{role:'user',content:msg}]})});
+  var r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:4000,system:sys,messages:[{role:'user',content:msg}]})});
   if(!r.ok)throw new Error('API '+r.status);
   var d=await r.json();
   var txt=(d.content||[]).map(function(b){return b.type==='text'?b.text:'';}).join('');
@@ -1743,8 +1743,8 @@ async function genSession(mode,timeOfDay){
 }
 
 async function getSwaps(ex,reason){
-  var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,system:SWAP_SYS,
+  var r=await fetch('/api/swap',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,system:SWAP_SYS,
       messages:[{role:'user',content:'Replace: '+ex.name+'\nPrescription: '+ex.prescription+'\nReason: '+(reason||'preference')+'\nTarget muscles: '+(ex.muscles_primary||[]).join(', ')}]})});
   if(!r.ok)throw new Error('Swap API '+r.status);
   var d=await r.json();
