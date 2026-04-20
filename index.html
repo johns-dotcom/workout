@@ -717,16 +717,18 @@ var SWAP_SYS = `Personal trainer. Athlete needs exercise swap. Respect all PRI c
 {"alternatives":[{"name":"str","prescription":"3×12","cues":"one cue","why":"one sentence","muscles_primary":["m"],"muscles_secondary":["m"],"body_view":"front|back"}]}`;
 
 function buildSystemPrompt(blocklist, db) {
-  var sys = BASE_SYS;
-  // Blocklist
+  // Static block — cached on Anthropic side (ephemeral, 5-min TTL) so repeat
+  // calls skip re-processing the ~2KB base prompt. Dynamic block stays uncached.
+  var blocks = [{type:'text', text: BASE_SYS, cache_control:{type:'ephemeral'}}];
+  var dyn = '';
   if (blocklist && blocklist.length > 0) {
-    sys += '\n\nBLOCKLIST — NEVER program these exercises, always substitute:\n';
-    blocklist.forEach(function(b) { sys += '- ' + b.name + (b.reason ? ' (' + b.reason + ')' : '') + '\n'; });
+    dyn += 'BLOCKLIST — NEVER program these exercises, always substitute:\n';
+    blocklist.forEach(function(b) { dyn += '- ' + b.name + (b.reason ? ' (' + b.reason + ')' : '') + '\n'; });
   }
-  // Smart context from DB
   var ctx = buildTrainingContext(db);
-  if (ctx) sys += '\n\n' + ctx;
-  return sys;
+  if (ctx) dyn += (dyn ? '\n\n' : '') + ctx;
+  if (dyn) blocks.push({type:'text', text: dyn});
+  return blocks;
 }
 
 function buildTrainingContext(db) {
